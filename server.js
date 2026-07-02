@@ -108,6 +108,31 @@ app.get('/', (req, res) => {
 });
 app.get('/healthz', (req, res) => res.send('ok'));
 
+function doStart() {
+  if (state.pool.length === 0) return;
+  state.running = true;
+  startTimer();
+  broadcastState();
+}
+function doPause() {
+  state.running = false;
+  stopTimer();
+  broadcastState();
+}
+function doSetInterval(sec) {
+  const v = parseInt(sec, 10);
+  if ([3, 5, 10].includes(v)) {
+    state.intervalSec = v;
+    if (state.running) startTimer();
+    broadcastState();
+  }
+}
+function doCallNow() {
+  if (state.pool.length === 0) return;
+  callNext();
+  if (state.running) startTimer(); // restart the interval clock from now
+}
+
 // ---------- Socket.io ----------
 io.on('connection', (socket) => {
   socket.emit('state', publicState());
@@ -130,33 +155,17 @@ io.on('connection', (socket) => {
     };
   }
 
-  socket.on('admin:start', requireAdmin(() => {
-    if (state.pool.length === 0) return;
-    state.running = true;
-    startTimer();
-    broadcastState();
-  }));
-
-  socket.on('admin:pause', requireAdmin(() => {
-    state.running = false;
-    stopTimer();
-    broadcastState();
-  }));
+  // ----- PIN-gated controls, used by the host console (/admin) -----
+  socket.on('admin:start', requireAdmin(doStart));
+  socket.on('admin:pause', requireAdmin(doPause));
+  socket.on('admin:setInterval', requireAdmin(doSetInterval));
+  socket.on('admin:callNow', requireAdmin(doCallNow));
 
   socket.on('admin:reset', requireAdmin(() => {
     stopTimer();
     state = freshState();
     broadcastState();
     io.emit('reset');
-  }));
-
-  socket.on('admin:setInterval', requireAdmin((sec) => {
-    const v = parseInt(sec, 10);
-    if ([3, 5, 10].includes(v)) {
-      state.intervalSec = v;
-      if (state.running) startTimer();
-      broadcastState();
-    }
   }));
 
   socket.on('admin:callNumber', requireAdmin((n) => {
@@ -170,12 +179,11 @@ io.on('connection', (socket) => {
     }
   }));
 
-  socket.on('admin:callNow', requireAdmin(() => {
-    if (state.running) {
-      callNext();
-      startTimer(); // restart the interval clock from now
-    }
-  }));
+  // ----- Open controls, used directly by the display page (no PIN) -----
+  socket.on('ctrl:start', doStart);
+  socket.on('ctrl:pause', doPause);
+  socket.on('ctrl:setInterval', doSetInterval);
+  socket.on('ctrl:callNow', doCallNow);
 });
 
 server.listen(PORT, () => {
