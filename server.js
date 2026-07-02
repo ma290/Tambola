@@ -1,0 +1,178 @@
+const express = require('express');
+const http = require('http');
+const path = require('path');
+const { Server } = require('socket.io');
+
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: '*' } });
+
+const PORT = process.env.PORT || 8080;
+const ADMIN_PIN = process.env.ADMIN_PIN || '1234';
+
+// ---------- Classic Tambola / Housie call-outs ----------
+const NICKNAMES = {
+  1: "Kelly's Eye", 7: "Lucky Seven", 8: "Garden Gate", 9: "Doctor's Orders",
+  10: "Boris's Den", 11: "Legs Eleven", 13: "Unlucky for Some", 16: "Sweet Sixteen",
+  17: "Dancing Queen", 18: "Coming of Age", 21: "Key of the Door", 22: "Two Little Ducks",
+  25: "Duck and Dive", 30: "Dirty Gertie", 32: "Buckle My Shoe", 33: "All the Threes",
+  40: "Naughty Forty", 44: "Droopy Drawers", 45: "Halfway There", 50: "Half a Century",
+  55: "Snakes Alive", 60: "Five Dozen", 65: "Old Age Pension", 66: "Clickety Click",
+  70: "Three Score and Ten", 77: "Sunset Strip", 80: "Gandhi's Breakfast",
+  88: "Two Fat Ladies", 90: "Top of the Shop"
+};
+
+// ---------- Game state (in-memory, single game/room) ----------
+function freshState() {
+  return {
+    pool: Array.from({ length: 90 }, (_, i) => i + 1),
+    called: [],
+    current: null,
+    running: false,
+    intervalSec: 5,
+    forcedNext: null
+  };
+}
+let state = freshState();
+let timer = null;
+
+function nickname(n) {
+  return NICKNAMES[n] || null;
+}
+
+function publicState() {
+  return {
+    called: state.called,
+    current: state.current,
+    running: state.running,
+    intervalSec: state.intervalSec,
+    remaining: state.pool.length,
+    nickname: state.current ? nickname(state.current) : null
+  };
+}
+
+function broadcastState() {
+  io.emit('state', publicState());
+}
+
+function callNext() {
+  if (state.pool.length === 0) {
+    stopTimer();
+    state.running = false;
+    broadcastState();
+    io.emit('gameOver');
+    return;
+  }
+  let n;
+  if (state.forcedNext && state.pool.includes(state.forcedNext)) {
+    n = state.forcedNext;
+  } else {
+    const idx = Math.floor(Math.random() * state.pool.length);
+    n = state.pool[idx];
+  }
+  state.forcedNext = null;
+  state.pool = state.pool.filter(x => x !== n);
+  state.called.push(n);
+  state.current = n;
+  broadcastState();
+  io.emit('numberCalled', { number: n, nickname: nickname(n) });
+}
+
+function startTimer() {
+  stopTimer();
+  timer = setInterval(callNext, state.intervalSec * 1000);
+}
+function stopTimer() {
+  if (timer) clearInterval(timer);
+  timer = null;
+}
+
+// ---------- Static routes ----------
+app.use(express.static(path.join(__dirname, 'public')));
+
+app.get('/display', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'display.html'));
+});
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+});
+app.get('/', (req, res) => {
+  res.redirect('/display');
+});
+app.get('/healthz', (req, res) => res.send('ok'));
+
+// ---------- Socket.io ----------
+io.on('connection', (socket) => {
+  socket.emit('state', publicState());
+  socket.isAdmin = false;
+
+  socket.on('admin:auth', (pin) => {
+    if (pin === ADMIN_PIN) {
+      socket.isAdmin = true;
+      socket.emit('admin:authResult', { ok: true });
+      socket.emit('state', publicState());
+    } else {
+      socket.emit('admin:authResult', { ok: false });
+    }
+  });
+
+  function requireAdmin(fn) {
+    return (...args) => {
+      if (!socket.isAdmin) return;
+      fn(...args);
+    };
+  }
+
+  socket.on('admin:start', requireAdmin(() => {
+    if (state.pool.length === 0) return;
+    state.running = true;
+    startTimer();
+    broadcastState();
+  }));
+
+  socket.on('admin:pause', requireAdmin(() => {
+    state.running = false;
+    stopTimer();
+    broadcastState();
+  }));
+
+  socket.on('admin:reset', requireAdmin(() => {
+    stopTimer();
+    state = freshState();
+    broadcastState();
+    io.emit('reset');
+  }));
+
+  socket.on('admin:setInterval', requireAdmin((sec) => {
+    const v = parseInt(sec, 10);
+    if ([3, 5, 10].includes(v)) {
+      state.intervalSec = v;
+      if (state.running) startTimer();
+      broadcastState();
+    }
+  }));
+
+  socket.on('admin:callNumber', requireAdmin((n) => {
+    const num = parseInt(n, 10);
+    if (num >= 1 && num <= 90 && state.pool.includes(num)) {
+      state.forcedNext = num;
+      if (!state.running) {
+        callNext();
+      }
+      // if running, the ticking timer will pick up forcedNext on its next tick
+    }
+  }));
+
+  socket.on('admin:callNow', requireAdmin(() => {
+    if (state.running) {
+      callNext();
+      startTimer(); // restart the interval clock from now
+    }
+  }));
+});
+
+server.listen(PORT, () => {
+  console.log(`Tambola server running on port ${PORT}`);
+  console.log(`Admin PIN: ${ADMIN_PIN}`);
+});
+
