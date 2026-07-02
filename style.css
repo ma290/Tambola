@@ -1,0 +1,129 @@
+/* ===== Tambola Night — design tokens ===== */
+:root {
+  --bg: #14132b;
+  --bg-2: #1a1840;
+  --surface: #201c4d;
+  --surface-2: #2a255e;
+  --line: #3a3470;
+  --gold: #e8b04b;
+  --gold-bright: #f6cd76;
+  --pink: #d63a72;
+  --pink-bright: #ef5a8f;
+  --cream: #f5efe0;
+  --muted: #9d97c9;
+  --green: #4caf7d;
+  --red: #e15252;
+  --shadow: 0 20px 60px rgba(0,0,0,0.45);
+  --font-display: "Bebas Neue", "Oswald", sans-serif;
+  --font-body: "Manrope", -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: radial-gradient(circle at 50% -10%, var(--bg-2), var(--bg) 60%);
+  color: var(--cream);
+  font-family: var(--font-body);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: var(--gold); color: var(--bg); }
+
+a { color: inherit; }
+
+/* subtle repeating dot texture, like a ticket paper */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: radial-gradient(var(--cream) 1px, transparent 1px);
+  background-size: 26px 26px;
+  z-index: 0;
+}
+
+.eyebrow {
+  font-family: var(--font-body);
+  font-size: 12px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.wordmark {
+  font-family: var(--font-display);
+  letter-spacing: 0.06em;
+  color: var(--gold-bright);
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+  border: none;
+  border-radius: 12px;
+}
+button:focus-visible, input:focus-visible {
+  outline: 3px solid var(--gold-bright);
+  outline-offset: 2px;
+}
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+
+input {
+  font-family: var(--font-body);
+}
+
+/* ===== Offline overlay (shared) ===== */
+#offlineOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  background: rgba(10, 9, 26, 0.96);
+  backdrop-filter: blur(6px);
+  text-align: center;
+  padding: 24px;
+}
+#offlineOverlay.show { display: flex; }
+#offlineOverlay .icon {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  border: 2px solid var(--red);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px;
+  color: var(--red);
+  animation: pulseRing 1.8s ease-in-out infinite;
+}
+@keyframes pulseRing {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(225,82,82,0.35); }
+  50% { box-shadow: 0 0 0 14px rgba(225,82,82,0); }
+}
+#offlineOverlay h2 {
+  font-family: var(--font-display);
+  font-size: 34px;
+  letter-spacing: 0.03em;
+  margin: 0;
+  color: var(--cream);
+}
+#offlineOverlay p {
+  color: var(--muted);
+  max-width: 360px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
