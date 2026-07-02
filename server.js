@@ -88,13 +88,20 @@ function stopTimer() {
 }
 
 // ---------- Static routes ----------
-app.use(express.static(path.join(__dirname, 'public')));
+// Everything lives flat next to server.js. We deliberately do NOT use a
+// blanket express.static(__dirname) here, because that would also serve
+// server.js, package.json, and the Dockerfile itself over HTTP. Instead we
+// explicitly allowlist only the actual web assets.
+const ASSETS = ['display.html', 'admin.html', 'offline.html', 'style.css', 'sw.js'];
+ASSETS.forEach(file => {
+  app.get('/' + file, (req, res) => res.sendFile(path.join(__dirname, file)));
+});
 
 app.get('/display', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'display.html'));
+  res.sendFile(path.join(__dirname, 'display.html'));
 });
 app.get('/admin', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'admin.html'));
+  res.sendFile(path.join(__dirname, 'admin.html'));
 });
 app.get('/', (req, res) => {
   res.redirect('/display');
@@ -175,4 +182,3 @@ server.listen(PORT, () => {
   console.log(`Tambola server running on port ${PORT}`);
   console.log(`Admin PIN: ${ADMIN_PIN}`);
 });
-
