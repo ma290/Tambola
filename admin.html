@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tambola — Host Console</title>
+<link rel="stylesheet" href="/style.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  .wrap { max-width: 760px; margin: 0 auto; padding: 24px 18px 60px; position: relative; z-index: 1; }
+
+  /* ===== Login (ticket stub) ===== */
+  #loginScreen {
+    min-height: 90vh;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .stub {
+    width: 320px;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 30px 26px;
+    box-shadow: var(--shadow);
+    text-align: center;
+    position: relative;
+  }
+  .stub::before, .stub::after {
+    content: "";
+    position: absolute;
+    width: 22px; height: 22px;
+    background: var(--bg);
+    border-radius: 50%;
+    top: 50%; transform: translateY(-50%);
+  }
+  .stub::before { left: -11px; }
+  .stub::after { right: -11px; }
+  .stub .wordmark { font-size: 34px; margin-bottom: 2px; }
+  .stub .eyebrow { margin-bottom: 22px; }
+  .stub input {
+    width: 100%;
+    padding: 14px;
+    font-size: 22px;
+    text-align: center;
+    letter-spacing: 0.4em;
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--cream);
+    margin-bottom: 14px;
+  }
+  .stub button {
+    width: 100%;
+    padding: 13px;
+    background: var(--gold);
+    color: #241a05;
+    font-weight: 800;
+    font-size: 15px;
+    letter-spacing: 0.03em;
+  }
+  .stub button:hover { background: var(--gold-bright); }
+  .stub .err { color: var(--red); font-size: 13px; margin-top: 10px; min-height: 16px; }
+
+  /* ===== Console ===== */
+  #console { display: none; }
+  header.top {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px;
+  }
+  .status-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface); border: 1px solid var(--line);
+    padding: 8px 14px; border-radius: 999px; font-size: 13px; color: var(--muted);
+  }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .dot.live { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .dot.paused { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 20px;
+    margin-bottom: 18px;
+  }
+  .panel h3 {
+    margin: 0 0 14px;
+    font-family: var(--font-display);
+    font-size: 20px;
+    letter-spacing: 0.03em;
+    color: var(--gold-bright);
+  }
+
+  .current-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .current-num {
+    font-family: var(--font-display);
+    font-size: 56px;
+    color: var(--gold-bright);
+    min-width: 90px;
+    text-align: center;
+  }
+  .current-info { color: var(--muted); font-size: 13px; }
+  .current-info b { color: var(--cream); }
+
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .btn {
+    padding: 13px 20px;
+    font-weight: 800;
+    font-size: 14px;
+    border-radius: 12px;
+  }
+  .btn.primary { background: var(--green); color: #0b2417; }
+  .btn.pause { background: var(--gold); color: #241a05; }
+  .btn.ghost { background: var(--bg-2); color: var(--cream); border: 1px solid var(--line); }
+  .btn.danger { background: var(--red); color: #2a0a0a; }
+  .btn:hover { filter: brightness(1.08); }
+
+  .interval-row { display: flex; gap: 8px; margin-top: 4px; }
+  .interval-btn {
+    flex: 1;
+    padding: 10px;
+    background: var(--bg-2);
+    color: var(--muted);
+    border: 1px solid var(--line);
+    font-weight: 700;
+  }
+  .interval-btn.active { background: var(--pink); color: var(--cream); border-color: var(--pink-bright); }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(10, 1fr);
+    gap: 6px;
+  }
+  .cell {
+    aspect-ratio: 1;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px;
+    background: var(--bg-2);
+    color: var(--muted);
+    font-weight: 700;
+    font-size: clamp(11px, 1.5vw, 14px);
+    border: 1px solid transparent;
+  }
+  .cell.called { background: linear-gradient(160deg, #4a4384, #322c66); color: var(--muted); }
+  .cell.available { cursor: pointer; }
+  .cell.available:hover { background: var(--surface-2); color: var(--cream); border-color: var(--line); }
+  .cell.current { border-color: var(--pink-bright); box-shadow: 0 0 0 3px rgba(214,58,114,0.35); color: var(--cream); }
+  .hint { color: var(--muted); font-size: 12.5px; margin-top: 12px; }
+
+  @media (max-width: 560px) {
+    .grid { grid-template-columns: repeat(6, 1fr); }
+  }
+</style>
+</head>
+<body>
+
+<div id="offlineOverlay">
+  <div class="icon">⌁</div>
+  <h2>You're offline</h2>
+  <p>The host console needs an internet connection to control the game. Please turn your internet back on.</p>
+</div>
+
+<!-- LOGIN -->
+<div id="loginScreen">
+  <div class="stub">
+    <div class="wordmark">TAMBOLA</div>
+    <div class="eyebrow">Host access</div>
+    <input type="password" id="pinInput" placeholder="ENTER PIN" inputmode="numeric" maxlength="8" autocomplete="off">
+    <button id="pinSubmit">Unlock console</button>
+    <div class="err" id="pinErr"></div>
+  </div>
+</div>
+
+<!-- CONSOLE -->
+<div id="console" class="wrap">
+  <header class="top">
+    <div class="wordmark" style="font-size:26px;">HOST CONSOLE</div>
+    <div class="status-pill"><span class="dot" id="statusDot"></span><span id="statusText">—</span></div>
+  </header>
+
+  <div class="panel">
+    <h3>Now calling</h3>
+    <div class="current-row">
+      <div class="current-num" id="currentNum">—</div>
+      <div class="current-info">
+        <div><b id="calledCount">0</b> of 90 called · <b id="remaining">90</b> remaining</div>
+        <div id="currentNickname" style="color: var(--pink-bright); margin-top:4px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Game control</h3>
+    <div class="btn-row">
+      <button class="btn primary" id="startBtn">▶ Start</button>
+      <button class="btn pause" id="pauseBtn">⏸ Pause</button>
+      <button class="btn ghost" id="callNowBtn">🎲 Call next now</button>
+      <button class="btn danger" id="resetBtn">↺ Reset game</button>
+    </div>
+    <div style="margin-top:16px;">
+      <div class="hint" style="margin-top:0;">Auto-call interval</div>
+      <div class="interval-row">
+        <button class="interval-btn" data-sec="3">3s</button>
+        <button class="interval-btn" data-sec="5">5s</button>
+        <button class="interval-btn" data-sec="10">10s</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>Call a specific number</h3>
+    <div class="grid" id="grid"></div>
+    <div class="hint">Tap a number to make it the next call on the display. Grey numbers have already been called.</div>
+  </div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+  const socket = io();
+
+  // ---- offline overlay ----
+  const overlay = document.getElementById('offlineOverlay');
+  let offlineTimer = null;
+  function setOffline(isOffline) {
+    if (isOffline) {
+      offlineTimer = setTimeout(() => overlay.classList.add('show'), 1500);
+    } else {
+      clearTimeout(offlineTimer);
+      overlay.classList.remove('show');
+    }
+  }
+  window.addEventListener('offline', () => setOffline(true));
+  window.addEventListener('online', () => setOffline(false));
+  if (!navigator.onLine) setOffline(true);
+  socket.on('connect', () => setOffline(false));
+  socket.on('disconnect', () => setOffline(true));
+
+  // ---- login ----
+  const loginScreen = document.getElementById('loginScreen');
+  const consoleEl = document.getElementById('console');
+  const pinInput = document.getElementById('pinInput');
+  const pinSubmit = document.getElementById('pinSubmit');
+  const pinErr = document.getElementById('pinErr');
+
+  function tryLogin() {
+    const pin = pinInput.value.trim();
+    if (!pin) return;
+    socket.emit('admin:auth', pin);
+  }
+  pinSubmit.addEventListener('click', tryLogin);
+  pinInput.addEventListener('keydown', e => { if (e.key === 'Enter') tryLogin(); });
+
+  socket.on('admin:authResult', ({ ok }) => {
+    if (ok) {
+      loginScreen.style.display = 'none';
+      consoleEl.style.display = 'block';
+      pinErr.textContent = '';
+      // remember for this tab session so a reconnect doesn't force re-login mid-game
+      sessionStorage.setItem('tambolaPin', pinInput.value.trim());
+    } else {
+      pinErr.textContent = 'Incorrect PIN — try again.';
+    }
+  });
+
+  // auto-relogin if we already unlocked this tab session (e.g. after a brief disconnect)
+  socket.on('connect', () => {
+    const savedPin = sessionStorage.getItem('tambolaPin');
+    if (savedPin) socket.emit('admin:auth', savedPin);
+  });
+
+  // ---- grid ----
+  const grid = document.getElementById('grid');
+  const cells = {};
+  for (let i = 1; i <= 90; i++) {
+    const c = document.createElement('div');
+    c.className = 'cell available';
+    c.textContent = i;
+    c.addEventListener('click', () => {
+      if (c.classList.contains('called')) return;
+      socket.emit('admin:callNumber', i);
+    });
+    grid.appendChild(c);
+    cells[i] = c;
+  }
+
+  // ---- controls ----
+  document.getElementById('startBtn').addEventListener('click', () => socket.emit('admin:start'));
+  document.getElementById('pauseBtn').addEventListener('click', () => socket.emit('admin:pause'));
+  document.getElementById('callNowBtn').addEventListener('click', () => socket.emit('admin:callNow'));
+  document.getElementById('resetBtn').addEventListener('click', () => {
+    if (confirm('Reset the whole game? All called numbers will be cleared.')) {
+      socket.emit('admin:reset');
+    }
+  });
+  document.querySelectorAll('.interval-btn').forEach(btn => {
+    btn.addEventListener('click', () => socket.emit('admin:setInterval', btn.dataset.sec));
+  });
+
+  // ---- state rendering ----
+  const statusDot = document.getElementById('statusDot');
+  const statusText = document.getElementById('statusText');
+  const currentNum = document.getElementById('currentNum');
+  const currentNickname = document.getElementById('currentNickname');
+  const calledCount = document.getElementById('calledCount');
+  const remainingEl = document.getElementById('remaining');
+
+  function renderState(state) {
+    Object.values(cells).forEach(c => { c.classList.remove('called', 'available', 'current'); });
+    for (let i = 1; i <= 90; i++) {
+      const isCalled = state.called.includes(i);
+      cells[i].classList.add(isCalled ? 'called' : 'available');
+    }
+    if (state.current && cells[state.current]) cells[state.current].classList.add('current');
+
+    currentNum.textContent = state.current || '—';
+    currentNickname.textContent = state.nickname || '';
+    calledCount.textContent = state.called.length;
+    remainingEl.textContent = state.remaining;
+
+    statusDot.className = 'dot ' + (state.running ? 'live' : 'paused');
+    statusText.textContent = state.running ? 'Live' : 'Paused';
+
+    document.querySelectorAll('.interval-btn').forEach(btn => {
+      btn.classList.toggle('active', parseInt(btn.dataset.sec, 10) === state.intervalSec);
+    });
+
+    document.getElementById('startBtn').disabled = state.running || state.remaining === 0;
+    document.getElementById('pauseBtn').disabled = !state.running;
+  }
+  socket.on('state', renderState);
+  socket.on('reset', () => { pinErr.textContent = ''; });
+
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+</script>
+</body>
+</html>
+
