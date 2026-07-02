@@ -6,9 +6,8 @@ WORKDIR /app
 COPY package.json ./
 RUN npm install --omit=dev --no-audit --no-fund
 
-# Copy app source
-COPY server.js ./
-COPY public ./public
+# Copy everything else (server.js, admin.html, display.html, offline.html, style.css, sw.js)
+COPY . .
 
 ENV NODE_ENV=production
 ENV PORT=8080
@@ -18,4 +17,3 @@ ENV ADMIN_PIN=1234
 EXPOSE 8080
 
 CMD ["node", "server.js"]
-
