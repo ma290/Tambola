@@ -356,15 +356,21 @@
     try {
       const a = new Audio('/audio/1.mp3');
       a.volume = 0;
-      a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+      const p = a.play();
+      if (p && p.then) p.then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
     } catch (e) {}
-    if ('speechSynthesis' in window) {
-      // a near-silent utterance, purely to satisfy the browser's
-      // "must follow a user gesture" rule for speech audio (fallback path)
-      const warm = new SpeechSynthesisUtterance(' ');
-      warm.volume = 0;
-      speechSynthesis.speak(warm);
-    }
+    // a near-silent utterance, purely to satisfy the browser's
+    // "must follow a user gesture" rule for speech audio (fallback path).
+    // Wrapped in its own try/catch: some WebViews expose speechSynthesis
+    // as a stub whose methods throw, which must never block the gate.
+    try {
+      if ('speechSynthesis' in window) {
+        const warm = new SpeechSynthesisUtterance(' ');
+        warm.volume = 0;
+        speechSynthesis.speak(warm);
+      }
+    } catch (e) {}
+    // Always unlock and hide the gate, regardless of what happened above.
     soundUnlocked = true;
     sessionStorage.setItem('tambolaSoundUnlocked', '1');
     soundGate.classList.add('hidden');
@@ -536,12 +542,6 @@
     });
   }
 
-  // ---- socket ----
-  const socket = io();
-  socket.on('connect', () => { setOffline(false); });
-  socket.on('disconnect', () => { setOffline(true); });
-  socket.on('state', renderState);
-  socket.on('numberCalled', ({ number, nickname }) => showNumber(number, nickname));
-  socket.on('reset', () => {
-    Object.values(cells).forEach(c => c.classList.remove('called', 'current'));
-    revealNum.textContent = '
+  // ---- offline overlay ----
+  // #offlineOverlay is display:none by default (style.css) and toggled
+  // via the .show
