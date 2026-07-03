@@ -96,6 +96,9 @@ const ASSETS = ['display.html', 'admin.html', 'offline.html', 'style.css', 'sw.j
 ASSETS.forEach(file => {
   app.get('/' + file, (req, res) => res.sendFile(path.join(__dirname, file)));
 });
+// Pre-generated English number-call clips (used instead of the Web Speech
+// API, which most Android WebView-based APK wrappers do not support).
+app.use('/audio', express.static(path.join(__dirname, 'audio')));
 
 app.get('/display', (req, res) => {
   res.sendFile(path.join(__dirname, 'display.html'));
