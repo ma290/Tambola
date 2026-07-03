@@ -143,6 +143,7 @@
   .btn.primary { background: var(--green); color: #0b2417; }
   .btn.pause { background: var(--gold); color: #241a05; }
   .btn.ghost { background: var(--bg-2); color: var(--cream); border: 1px solid var(--line); }
+  .btn.danger { background: var(--red); color: #2a0a0a; }
   .btn:hover { filter: brightness(1.08); }
   .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -257,6 +258,7 @@
       <div class="eyebrow">Live number board</div>
     </div>
     <div class="top-right">
+      <button class="icon-btn" id="testVoiceBtn" title="Test voice" style="width:auto; padding:0 14px; font-size:13px; font-weight:700;">🗣 Test voice</button>
       <button class="icon-btn" id="muteBtn" title="Mute announcements">🔊</button>
       <div class="status-pill">
         <span class="dot" id="statusDot"></span>
@@ -280,6 +282,7 @@
       <button class="btn primary" id="startBtn">▶ Auto</button>
       <button class="btn pause" id="pauseBtn">⏸ Pause</button>
       <button class="btn ghost" id="callNextBtn">🎲 Call Next</button>
+      <button class="btn danger" id="resetBtn">↺ Reset</button>
     </div>
     <div class="interval-row">
       <span class="label">Interval</span>
@@ -353,16 +356,44 @@
     if (muted) return;
     if (!('speechSynthesis' in window)) return;
     const text = nickname ? `${number}. ${nickname}` : `Number ${number}`;
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang = 'en-IN';
-    utter.rate = 0.95;
-    const voices = speechSynthesis.getVoices();
-    const enVoice = voices.find(v => v.lang && v.lang.startsWith('en'));
-    if (enVoice) utter.voice = enVoice;
     speechSynthesis.cancel();
-    speechSynthesis.speak(utter);
+    // Android Chrome sometimes drops the very next speak() right after
+    // cancel() — a tiny delay makes it reliable.
+    setTimeout(() => {
+      const utter = new SpeechSynthesisUtterance(text);
+      utter.lang = 'en-IN';
+      utter.rate = 0.95;
+      const voices = speechSynthesis.getVoices();
+      const enVoice = voices.find(v => v.lang && v.lang.startsWith('en'));
+      if (enVoice) utter.voice = enVoice;
+      speechSynthesis.speak(utter);
+    }, 60);
   }
-  if ('speechSynthesis' in window) speechSynthesis.getVoices(); // warm up voice list
+  if ('speechSynthesis' in window) {
+    speechSynthesis.getVoices(); // warm up voice list
+    // Known Chrome-on-Android bug: the speech engine silently pauses
+    // itself after ~15s idle and never resumes on its own. Nudging it
+    // periodically keeps announcements working through a long game.
+    setInterval(() => { speechSynthesis.resume(); }, 8000);
+  }
+
+  // ---- test voice button (bypasses mute, for diagnosing device audio) ----
+  document.getElementById('testVoiceBtn').addEventListener('click', () => {
+    if (!('speechSynthesis' in window)) {
+      alert('This browser does not support text-to-speech at all.');
+      return;
+    }
+    speechSynthesis.cancel();
+    setTimeout(() => {
+      const utter = new SpeechSynthesisUtterance('This is a test announcement. Number seven, lucky seven.');
+      utter.lang = 'en-IN';
+      utter.rate = 0.95;
+      const voices = speechSynthesis.getVoices();
+      const enVoice = voices.find(v => v.lang && v.lang.startsWith('en'));
+      if (enVoice) utter.voice = enVoice;
+      speechSynthesis.speak(utter);
+    }, 60);
+  });
 
   // ---- reveal animation ----
   const revealEl = document.getElementById('reveal');
@@ -409,10 +440,16 @@
   const startBtn = document.getElementById('startBtn');
   const pauseBtn = document.getElementById('pauseBtn');
   const callNextBtn = document.getElementById('callNextBtn');
+  const resetBtn = document.getElementById('resetBtn');
 
   startBtn.addEventListener('click', () => socket.emit('ctrl:start'));
   pauseBtn.addEventListener('click', () => socket.emit('ctrl:pause'));
   callNextBtn.addEventListener('click', () => socket.emit('ctrl:callNow'));
+  resetBtn.addEventListener('click', () => {
+    if (confirm('Reset the whole game? All called numbers will be cleared for everyone watching.')) {
+      socket.emit('ctrl:reset');
+    }
+  });
   document.querySelectorAll('.interval-btn').forEach(btn => {
     btn.addEventListener('click', () => socket.emit('ctrl:setInterval', btn.dataset.sec));
   });
