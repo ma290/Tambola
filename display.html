@@ -326,7 +326,10 @@
   muteBtn.addEventListener('click', () => {
     muted = !muted;
     localStorage.setItem('tambolaMuted', muted ? '1' : '0');
-    if (muted) speechSynthesis.cancel();
+    if (muted) {
+      speechSynthesis.cancel();
+      if (typeof callerAudio !== 'undefined') { callerAudio.pause(); }
+    }
     renderMute();
   });
   renderMute();
@@ -337,9 +340,17 @@
   let soundUnlocked = sessionStorage.getItem('tambolaSoundUnlocked') === '1';
 
   function unlockSound() {
+    // Unlock HTML5 <audio> playback (the primary announcement path) with a
+    // real user-gesture play/pause — required by mobile browsers and
+    // WebView before any later programmatic play() calls will work.
+    try {
+      const a = new Audio('/audio/1.mp3');
+      a.volume = 0;
+      a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
+    } catch (e) {}
     if ('speechSynthesis' in window) {
       // a near-silent utterance, purely to satisfy the browser's
-      // "must follow a user gesture" rule for speech audio
+      // "must follow a user gesture" rule for speech audio (fallback path)
       const warm = new SpeechSynthesisUtterance(' ');
       warm.volume = 0;
       speechSynthesis.speak(warm);
@@ -352,13 +363,17 @@
   if (soundUnlocked) soundGate.classList.add('hidden');
 
   // ---- speech (English announcement) ----
-  function speak(number, nickname) {
-    if (muted) return;
+  // Primary path: pre-generated audio clips (/audio/N.mp3) — these are
+  // plain <audio> playback, which works reliably even inside Android
+  // WebView-based APK wrappers, unlike the Web Speech API (speechSynthesis),
+  // which most WebViews don't implement at all.
+  const callerAudio = new Audio();
+  callerAudio.preload = 'auto';
+
+  function speakViaSynthesis(number, nickname) {
     if (!('speechSynthesis' in window)) return;
     const text = nickname ? `${number}. ${nickname}` : `Number ${number}`;
     speechSynthesis.cancel();
-    // Android Chrome sometimes drops the very next speak() right after
-    // cancel() — a tiny delay makes it reliable.
     setTimeout(() => {
       const utter = new SpeechSynthesisUtterance(text);
       utter.lang = 'en-IN';
@@ -368,6 +383,18 @@
       if (enVoice) utter.voice = enVoice;
       speechSynthesis.speak(utter);
     }, 60);
+  }
+
+  function speak(number, nickname) {
+    if (muted) return;
+    callerAudio.src = `/audio/${number}.mp3`;
+    const playPromise = callerAudio.play();
+    if (playPromise && playPromise.catch) {
+      playPromise.catch(() => {
+        // audio file missing/blocked — fall back to browser TTS if present
+        speakViaSynthesis(number, nickname);
+      });
+    }
   }
   if ('speechSynthesis' in window) {
     speechSynthesis.getVoices(); // warm up voice list
@@ -379,20 +406,23 @@
 
   // ---- test voice button (bypasses mute, for diagnosing device audio) ----
   document.getElementById('testVoiceBtn').addEventListener('click', () => {
-    if (!('speechSynthesis' in window)) {
-      alert('This browser does not support text-to-speech at all.');
-      return;
+    const a = new Audio('/audio/7.mp3'); // "7. Lucky Seven"
+    const playPromise = a.play();
+    if (playPromise && playPromise.catch) {
+      playPromise.catch(() => {
+        if (!('speechSynthesis' in window)) {
+          alert('Audio playback failed and this browser has no text-to-speech fallback either.');
+          return;
+        }
+        speechSynthesis.cancel();
+        setTimeout(() => {
+          const utter = new SpeechSynthesisUtterance('This is a test announcement. Number seven, lucky seven.');
+          utter.lang = 'en-IN';
+          utter.rate = 0.95;
+          speechSynthesis.speak(utter);
+        }, 60);
+      });
     }
-    speechSynthesis.cancel();
-    setTimeout(() => {
-      const utter = new SpeechSynthesisUtterance('This is a test announcement. Number seven, lucky seven.');
-      utter.lang = 'en-IN';
-      utter.rate = 0.95;
-      const voices = speechSynthesis.getVoices();
-      const enVoice = voices.find(v => v.lang && v.lang.startsWith('en'));
-      if (enVoice) utter.voice = enVoice;
-      speechSynthesis.speak(utter);
-    }, 60);
   });
 
   // ---- reveal animation ----
