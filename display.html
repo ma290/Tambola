@@ -467,7 +467,7 @@
   const recentEl = document.getElementById('recent');
   function renderRecent(called) {
     recentEl.innerHTML = '';
-    called.slice(-8).reverse().forEach((n, idx) => {
+    called.slice(-2).reverse().forEach((n, idx) => {
       const c = document.createElement('div');
       c.className = 'chip' + (idx === 0 ? ' latest' : '');
       c.textContent = n;
