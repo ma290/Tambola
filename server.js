@@ -132,6 +132,12 @@ function doCallNow() {
   callNext();
   if (state.running) startTimer(); // restart the interval clock from now
 }
+function doReset() {
+  stopTimer();
+  state = freshState();
+  broadcastState();
+  io.emit('reset');
+}
 
 // ---------- Socket.io ----------
 io.on('connection', (socket) => {
@@ -161,12 +167,7 @@ io.on('connection', (socket) => {
   socket.on('admin:setInterval', requireAdmin(doSetInterval));
   socket.on('admin:callNow', requireAdmin(doCallNow));
 
-  socket.on('admin:reset', requireAdmin(() => {
-    stopTimer();
-    state = freshState();
-    broadcastState();
-    io.emit('reset');
-  }));
+  socket.on('admin:reset', requireAdmin(doReset));
 
   socket.on('admin:callNumber', requireAdmin((n) => {
     const num = parseInt(n, 10);
@@ -184,6 +185,7 @@ io.on('connection', (socket) => {
   socket.on('ctrl:pause', doPause);
   socket.on('ctrl:setInterval', doSetInterval);
   socket.on('ctrl:callNow', doCallNow);
+  socket.on('ctrl:reset', doReset);
 });
 
 server.listen(PORT, () => {
