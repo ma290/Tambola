@@ -178,6 +178,12 @@
     padding: 18px;
     box-shadow: var(--shadow);
   }
+  .board-header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+  }
+  .board-title { color: var(--muted); font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; }
+  .grid.hidden { display: none; }
   .grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; }
   .cell {
     aspect-ratio: 1;
@@ -293,6 +299,10 @@
   </div>
 
   <div class="board">
+    <div class="board-header">
+      <span class="board-title">All numbers</span>
+      <button class="btn ghost" id="toggleBoardBtn">🔽 Hide numbers</button>
+    </div>
     <div class="grid" id="grid"></div>
   </div>
 
@@ -466,6 +476,21 @@
     });
   }
 
+  // ---- hide/show numbers board ----
+  const gridEl = document.getElementById('grid');
+  const toggleBoardBtn = document.getElementById('toggleBoardBtn');
+  let boardHidden = localStorage.getItem('tambolaBoardHidden') === '1';
+  function renderBoardToggle() {
+    gridEl.classList.toggle('hidden', boardHidden);
+    toggleBoardBtn.textContent = boardHidden ? '🔼 Show numbers' : '🔽 Hide numbers';
+  }
+  toggleBoardBtn.addEventListener('click', () => {
+    boardHidden = !boardHidden;
+    localStorage.setItem('tambolaBoardHidden', boardHidden ? '1' : '0');
+    renderBoardToggle();
+  });
+  renderBoardToggle();
+
   // ---- controls ----
   const startBtn = document.getElementById('startBtn');
   const pauseBtn = document.getElementById('pauseBtn');
@@ -519,32 +544,4 @@
   socket.on('numberCalled', ({ number, nickname }) => showNumber(number, nickname));
   socket.on('reset', () => {
     Object.values(cells).forEach(c => c.classList.remove('called', 'current'));
-    revealNum.textContent = 'Waiting to start';
-    revealNum.classList.add('placeholder');
-    nicknameEl.textContent = '';
-    recentEl.innerHTML = '';
-  });
-  socket.on('gameOver', () => { nicknameEl.textContent = 'Full house — all 90 called!'; });
-
-  // ---- offline overlay ----
-  const overlay = document.getElementById('offlineOverlay');
-  let offlineTimer = null;
-  function setOffline(isOffline) {
-    if (isOffline) {
-      offlineTimer = setTimeout(() => overlay.classList.add('show'), 1500);
-    } else {
-      clearTimeout(offlineTimer);
-      overlay.classList.remove('show');
-    }
-  }
-  window.addEventListener('offline', () => setOffline(true));
-  window.addEventListener('online', () => setOffline(false));
-  if (!navigator.onLine) setOffline(true);
-
-  // ---- offline-first service worker ----
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
-  }
-</script>
-</body>
-</html>
+    revealNum.textContent = '
