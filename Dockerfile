@@ -12,7 +12,7 @@ COPY . .
 ENV NODE_ENV=production
 ENV PORT=8080
 # Change this in production! e.g. -e ADMIN_PIN=your-secret-pin
-ENV ADMIN_PIN=1234
+ENV ADMIN_PIN=9845
 
 EXPOSE 8080
 
