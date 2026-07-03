@@ -1,547 +1,168 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tambola — Live Board</title>
-<link rel="stylesheet" href="/style.css">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
-<style>
-  body { overflow-x: hidden; }
-  .stage {
-    position: relative; z-index: 1;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 22px 18px 40px;
-  }
-  header.top {
-    width: 100%;
-    max-width: 1100px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 18px;
-    gap: 10px;
-  }
-  .brand { display: flex; flex-direction: column; }
-  .brand .wordmark { font-size: 30px; line-height: 1; }
-  .brand .eyebrow { margin-top: 2px; }
-  .top-right { display: flex; align-items: center; gap: 10px; }
-  .status-pill {
-    display: flex; align-items: center; gap: 8px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    padding: 8px 14px;
-    border-radius: 999px;
-    font-size: 13px;
-    color: var(--muted);
-  }
-  .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: background 0.2s; }
-  .dot.live { background: var(--green); box-shadow: 0 0 8px var(--green); }
-  .dot.paused { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
-
-  .icon-btn {
-    width: 40px; height: 40px;
-    border-radius: 50%;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    color: var(--cream);
-    font-size: 18px;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .icon-btn:hover { background: var(--surface-2); }
-  .icon-btn.muted { border-color: var(--red); color: var(--red); }
-
-  /* ===== Reveal centerpiece ===== */
-  .reveal-wrap { perspective: 1200px; margin: 18px 0 26px; }
-  .reveal {
-    position: relative;
-    width: 260px; height: 260px;
-    border-radius: 50%;
-    background: radial-gradient(circle at 32% 28%, #3a3470, var(--surface) 55%, #16143a 100%);
-    border: 3px solid var(--gold);
-    box-shadow: 0 0 0 8px rgba(232,176,75,0.08), var(--shadow);
-    display: flex; align-items: center; justify-content: center;
-    transform-style: preserve-3d;
-  }
-  .reveal.spin { animation: flipReveal 0.7s cubic-bezier(.2,.8,.3,1); }
-  @keyframes flipReveal {
-    0%   { transform: rotateY(0deg) scale(1); }
-    35%  { transform: rotateY(180deg) scale(1.08); }
-    60%  { transform: rotateY(360deg) scale(1.1); }
-    100% { transform: rotateY(360deg) scale(1); }
-  }
-  .reveal .glow {
-    position: absolute; inset: -18px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(232,176,75,0.55), transparent 70%);
-    opacity: 0;
-  }
-  .reveal.spin .glow { animation: glowPulse 0.9s ease-out; }
-  @keyframes glowPulse {
-    0% { opacity: 0; transform: scale(0.7); }
-    35% { opacity: 1; transform: scale(1.15); }
-    100% { opacity: 0; transform: scale(1.4); }
-  }
-  .reveal .num {
-    font-family: var(--font-display);
-    font-size: 108px;
-    color: var(--gold-bright);
-    line-height: 1;
-    text-shadow: 0 4px 18px rgba(0,0,0,0.5);
-  }
-  .reveal .num.placeholder { font-size: 40px; color: var(--muted); font-family: var(--font-body); font-weight: 800; }
-  .nickname {
-    margin-top: 14px;
-    font-size: 16px;
-    letter-spacing: 0.04em;
-    color: var(--pink-bright);
-    min-height: 22px;
-    text-align: center;
-  }
-
-  .particle {
-    position: absolute;
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    background: var(--gold-bright);
-    top: 50%; left: 50%;
-    opacity: 0;
-    pointer-events: none;
-  }
-  .reveal.spin .particle { animation: spark 0.8s ease-out forwards; }
-  @keyframes spark {
-    0% { opacity: 1; transform: translate(0,0) scale(1); }
-    100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(0.3); }
-  }
-
-  /* ===== Controls ===== */
-  .controls {
-    width: 100%; max-width: 1100px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 18px;
-    padding: 16px 18px;
-    margin-bottom: 18px;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 14px;
-    justify-content: space-between;
-  }
-  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
-  .btn {
-    padding: 12px 18px;
-    font-weight: 800;
-    font-size: 14px;
-    border-radius: 12px;
-    border: none;
-  }
-  .btn.primary { background: var(--green); color: #0b2417; }
-  .btn.pause { background: var(--gold); color: #241a05; }
-  .btn.ghost { background: var(--bg-2); color: var(--cream); border: 1px solid var(--line); }
-  .btn.danger { background: var(--red); color: #2a0a0a; }
-  .btn:hover { filter: brightness(1.08); }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  .interval-row { display: flex; gap: 8px; align-items: center; }
-  .interval-row .label { color: var(--muted); font-size: 12.5px; margin-right: 2px; }
-  .interval-btn {
-    padding: 10px 14px;
-    background: var(--bg-2);
-    color: var(--muted);
-    border: 1px solid var(--line);
-    font-weight: 700;
-    border-radius: 12px;
-  }
-  .interval-btn.active { background: var(--pink); color: var(--cream); border-color: var(--pink-bright); }
-
-  /* ===== Recent strip ===== */
-  .recent { display: flex; gap: 10px; margin-bottom: 26px; flex-wrap: wrap; justify-content: center; }
-  .chip {
-    width: 42px; height: 42px; border-radius: 50%;
-    background: var(--surface); border: 1px solid var(--line);
-    display: flex; align-items: center; justify-content: center;
-    font-weight: 800; font-size: 15px; color: var(--muted);
-  }
-  .chip.latest { background: var(--pink); border-color: var(--pink-bright); color: var(--cream); }
-
-  /* ===== Grid ===== */
-  .board {
-    width: 100%; max-width: 1100px;
-    background: var(--surface);
-    border: 1px solid var(--line);
-    border-radius: 20px;
-    padding: 18px;
-    box-shadow: var(--shadow);
-  }
-  .board-header {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 14px;
-  }
-  .board-title { color: var(--muted); font-size: 13px; letter-spacing: 0.04em; text-transform: uppercase; }
-  .grid.hidden { display: none; }
-  .grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 6px; }
-  .cell {
-    aspect-ratio: 1;
-    display: flex; align-items: center; justify-content: center;
-    border-radius: 8px;
-    background: var(--bg-2);
-    color: var(--muted);
-    font-weight: 700;
-    font-size: clamp(12px, 1.6vw, 16px);
-    border: 1px solid transparent;
-    transition: background 0.25s, color 0.25s, transform 0.25s;
-  }
-  .cell.called {
-    background: linear-gradient(160deg, var(--gold), #c98f34);
-    color: #241a05;
-    animation: pop 0.4s ease;
-  }
-  .cell.current { border-color: var(--pink-bright); box-shadow: 0 0 0 3px rgba(214,58,114,0.35); }
-  @keyframes pop {
-    0% { transform: scale(0.6); }
-    60% { transform: scale(1.12); }
-    100% { transform: scale(1); }
-  }
-
-  footer.meta {
-    margin-top: 18px;
-    display: flex; gap: 18px; flex-wrap: wrap; justify-content: center;
-    color: var(--muted); font-size: 13px;
-  }
-
-  /* ===== Sound gate (must enable before audio can play) ===== */
-  #soundGate {
-    position: fixed; inset: 0; z-index: 998;
-    display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 16px;
-    background: rgba(10, 9, 26, 0.97);
-    text-align: center; padding: 24px;
-  }
-  #soundGate.hidden { display: none; }
-  #soundGate .icon {
-    width: 72px; height: 72px; border-radius: 50%;
-    border: 2px solid var(--gold); color: var(--gold-bright);
-    display: flex; align-items: center; justify-content: center; font-size: 30px;
-  }
-  #soundGate h2 { font-family: var(--font-display); font-size: 32px; margin: 0; letter-spacing: 0.03em; }
-  #soundGate p { color: var(--muted); max-width: 360px; margin: 0; font-size: 14px; }
-  #soundGate button {
-    margin-top: 6px; padding: 14px 26px; background: var(--gold); color: #241a05;
-    font-weight: 800; font-size: 15px; border-radius: 12px; border: none;
-  }
-
-  @media (max-width: 640px) {
-    .grid { grid-template-columns: repeat(5, 1fr); }
-    .reveal { width: 190px; height: 190px; }
-    .reveal .num { font-size: 76px; }
-    .controls { flex-direction: column; align-items: stretch; }
-  }
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tambola Display</title>
+  <link rel="stylesheet" href="/style.css">
+  <!-- Load Socket.io -->
+  <script src="/socket.io/socket.io.js"></script>
 </head>
 <body>
 
-<div id="offlineOverlay">
-  <div class="icon">⌁</div>
-  <h2>You're offline</h2>
-  <p>This screen needs an internet connection to receive numbers from the host. Please turn your internet back on.</p>
-</div>
-
-<div id="soundGate">
-  <div class="icon">🔊</div>
-  <h2>Enable sound</h2>
-  <p>Tap below to turn on the English voice announcement for called numbers.</p>
-  <button id="enableSoundBtn">🔊 Enable audio announcements</button>
-</div>
-
-<div class="stage">
-  <header class="top">
-    <div class="brand">
-      <div class="wordmark">TAMBOLA</div>
-      <div class="eyebrow">Live number board</div>
+  <!-- Offline Overlay -->
+  <div id="offlineOverlay" class="offline-overlay">
+    <div class="offline-content">
+      <h2>Offline</h2>
+      <p>Reconnecting to server...</p>
     </div>
-    <div class="top-right">
-      <button class="icon-btn" id="testVoiceBtn" title="Test voice" style="width:auto; padding:0 14px; font-size:13px; font-weight:700;">🗣 Test voice</button>
-      <button class="icon-btn" id="muteBtn" title="Mute announcements">🔊</button>
-      <div class="status-pill">
-        <span class="dot" id="statusDot"></span>
-        <span id="statusText">Connecting…</span>
-      </div>
-    </div>
+  </div>
+
+  <header>
+    <h1>Tambola / Housie</h1>
+    <!-- The Audio Enhancement Button -->
+    <button id="soundGate" class="btn">Enable audio announcements</button>
   </header>
 
-  <div class="reveal-wrap">
-    <div class="reveal" id="reveal">
-      <div class="glow"></div>
-      <div class="num placeholder" id="revealNum">Waiting to start</div>
+  <main>
+    <!-- Current Number Display -->
+    <div class="current-draw">
+      <div id="revealNum" class="placeholder">Waiting to start</div>
+      <div id="nickname"></div>
     </div>
-  </div>
-  <div class="nickname" id="nickname"></div>
 
-  <div class="recent" id="recent"></div>
-
-  <div class="controls">
-    <div class="btn-row">
-      <button class="btn primary" id="startBtn">▶ Auto</button>
-      <button class="btn pause" id="pauseBtn">⏸ Pause</button>
-      <button class="btn ghost" id="callNextBtn">🎲 Call Next</button>
-      <button class="btn danger" id="resetBtn">↺ Reset</button>
+    <!-- Tambola 1-90 Board -->
+    <div id="board" class="board">
+      <!-- Grid cells will be injected here by JavaScript -->
     </div>
-    <div class="interval-row">
-      <span class="label">Interval</span>
-      <button class="interval-btn" data-sec="3">3s</button>
-      <button class="interval-btn" data-sec="5">5s</button>
-      <button class="interval-btn" data-sec="10">10s</button>
-    </div>
-  </div>
+  </main>
 
-  <div class="board">
-    <div class="board-header">
-      <span class="board-title">All numbers</span>
-      <button class="btn ghost" id="toggleBoardBtn">🔽 Hide numbers</button>
-    </div>
-    <div class="grid" id="grid"></div>
-  </div>
-
-  <footer class="meta">
-    <span id="calledCount">0 of 90 called</span>
-    <span id="intervalMeta">Interval: —</span>
-  </footer>
-</div>
-
-<script src="/socket.io/socket.io.js"></script>
-<script>
-  // ---- build grid ----
-  const grid = document.getElementById('grid');
-  const cells = {};
-  for (let i = 1; i <= 90; i++) {
-    const c = document.createElement('div');
-    c.className = 'cell';
-    c.textContent = i;
-    grid.appendChild(c);
-    cells[i] = c;
-  }
-
-  // ---- mute state ----
-  const muteBtn = document.getElementById('muteBtn');
-  let muted = localStorage.getItem('tambolaMuted') === '1';
-  function renderMute() {
-    muteBtn.textContent = muted ? '🔇' : '🔊';
-    muteBtn.classList.toggle('muted', muted);
-    muteBtn.title = muted ? 'Unmute announcements' : 'Mute announcements';
-  }
-  muteBtn.addEventListener('click', () => {
-    muted = !muted;
-    localStorage.setItem('tambolaMuted', muted ? '1' : '0');
-    if (muted) {
-      speechSynthesis.cancel();
-      if (typeof callerAudio !== 'undefined') { callerAudio.pause(); }
+  <script>
+    // ---- Board Initialization ----
+    const board = document.getElementById('board');
+    for (let i = 1; i <= 90; i++) {
+      const cell = document.createElement('div');
+      cell.id = 'cell-' + i;
+      cell.className = 'cell';
+      cell.textContent = i;
+      board.appendChild(cell);
     }
-    renderMute();
-  });
-  renderMute();
 
-  // ---- sound gate (English voice announcement is required, so unlock it up front) ----
-  const soundGate = document.getElementById('soundGate');
-  const enableSoundBtn = document.getElementById('enableSoundBtn');
-  let soundUnlocked = sessionStorage.getItem('tambolaSoundUnlocked') === '1';
-
-  function unlockSound() {
-    // Unlock HTML5 <audio> playback (the primary announcement path) with a
-    // real user-gesture play/pause — required by mobile browsers and
-    // WebView before any later programmatic play() calls will work.
-    try {
-      const a = new Audio('/audio/1.mp3');
-      a.volume = 0;
-      const p = a.play();
-      if (p && p.then) p.then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
-    } catch (e) {}
-    // a near-silent utterance, purely to satisfy the browser's
-    // "must follow a user gesture" rule for speech audio (fallback path).
-    // Wrapped in its own try/catch: some WebViews expose speechSynthesis
-    // as a stub whose methods throw, which must never block the gate.
-    try {
+    // ---- Audio Enhancement (Sound Gate) ----
+    let audioEnabled = false;
+    const soundGateBtn = document.getElementById('soundGate');
+    
+    soundGateBtn.addEventListener('click', () => {
+      audioEnabled = true;
+      soundGateBtn.textContent = 'Audio Enabled';
+      soundGateBtn.disabled = true;
+      soundGateBtn.classList.add('success');
+      
+      // Unlock the Web Audio / Speech Synthesis API on user interaction
       if ('speechSynthesis' in window) {
-        const warm = new SpeechSynthesisUtterance(' ');
-        warm.volume = 0;
-        speechSynthesis.speak(warm);
+        const silentUtterance = new SpeechSynthesisUtterance('');
+        window.speechSynthesis.speak(silentUtterance);
       }
-    } catch (e) {}
-    // Always unlock and hide the gate, regardless of what happened above.
-    soundUnlocked = true;
-    sessionStorage.setItem('tambolaSoundUnlocked', '1');
-    soundGate.classList.add('hidden');
-  }
-  enableSoundBtn.addEventListener('click', unlockSound);
-  if (soundUnlocked) soundGate.classList.add('hidden');
-
-  // ---- speech (English announcement) ----
-  // Primary path: pre-generated audio clips (/audio/N.mp3) — these are
-  // plain <audio> playback, which works reliably even inside Android
-  // WebView-based APK wrappers, unlike the Web Speech API (speechSynthesis),
-  // which most WebViews don't implement at all.
-  const callerAudio = new Audio();
-  callerAudio.preload = 'auto';
-
-  function speakViaSynthesis(number, nickname) {
-    if (!('speechSynthesis' in window)) return;
-    const text = nickname ? `${number}. ${nickname}` : `Number ${number}`;
-    speechSynthesis.cancel();
-    setTimeout(() => {
-      const utter = new SpeechSynthesisUtterance(text);
-      utter.lang = 'en-IN';
-      utter.rate = 0.95;
-      const voices = speechSynthesis.getVoices();
-      const enVoice = voices.find(v => v.lang && v.lang.startsWith('en'));
-      if (enVoice) utter.voice = enVoice;
-      speechSynthesis.speak(utter);
-    }, 60);
-  }
-
-  function speak(number, nickname) {
-    if (muted) return;
-    callerAudio.src = `/audio/${number}.mp3`;
-    const playPromise = callerAudio.play();
-    if (playPromise && playPromise.catch) {
-      playPromise.catch(() => {
-        // audio file missing/blocked — fall back to browser TTS if present
-        speakViaSynthesis(number, nickname);
-      });
-    }
-  }
-  if ('speechSynthesis' in window) {
-    speechSynthesis.getVoices(); // warm up voice list
-    // Known Chrome-on-Android bug: the speech engine silently pauses
-    // itself after ~15s idle and never resumes on its own. Nudging it
-    // periodically keeps announcements working through a long game.
-    setInterval(() => { speechSynthesis.resume(); }, 8000);
-  }
-
-  // ---- test voice button (bypasses mute, for diagnosing device audio) ----
-  document.getElementById('testVoiceBtn').addEventListener('click', () => {
-    const a = new Audio('/audio/7.mp3'); // "7. Lucky Seven"
-    const playPromise = a.play();
-    if (playPromise && playPromise.catch) {
-      playPromise.catch(() => {
-        if (!('speechSynthesis' in window)) {
-          alert('Audio playback failed and this browser has no text-to-speech fallback either.');
-          return;
-        }
-        speechSynthesis.cancel();
-        setTimeout(() => {
-          const utter = new SpeechSynthesisUtterance('This is a test announcement. Number seven, lucky seven.');
-          utter.lang = 'en-IN';
-          utter.rate = 0.95;
-          speechSynthesis.speak(utter);
-        }, 60);
-      });
-    }
-  });
-
-  // ---- reveal animation ----
-  const revealEl = document.getElementById('reveal');
-  const revealNum = document.getElementById('revealNum');
-  const nicknameEl = document.getElementById('nickname');
-
-  function burstParticles() {
-    document.querySelectorAll('.particle').forEach(p => p.remove());
-    for (let i = 0; i < 10; i++) {
-      const p = document.createElement('div');
-      p.className = 'particle';
-      const angle = (Math.PI * 2 * i) / 10;
-      const dist = 90 + Math.random() * 40;
-      p.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
-      p.style.setProperty('--dy', Math.sin(angle) * dist + 'px');
-      revealEl.appendChild(p);
-    }
-  }
-
-  function showNumber(n, nickname) {
-    revealNum.textContent = n;
-    revealNum.classList.remove('placeholder');
-    nicknameEl.textContent = nickname || '';
-    revealEl.classList.remove('spin');
-    burstParticles();
-    void revealEl.offsetWidth; // restart animation
-    revealEl.classList.add('spin');
-    speak(n, nickname);
-  }
-
-  // ---- recent strip ----
-  const recentEl = document.getElementById('recent');
-  function renderRecent(called) {
-    recentEl.innerHTML = '';
-    called.slice(-8).reverse().forEach((n, idx) => {
-      const c = document.createElement('div');
-      c.className = 'chip' + (idx === 0 ? ' latest' : '');
-      c.textContent = n;
-      recentEl.appendChild(c);
     });
-  }
 
-  // ---- hide/show numbers board ----
-  const gridEl = document.getElementById('grid');
-  const toggleBoardBtn = document.getElementById('toggleBoardBtn');
-  let boardHidden = localStorage.getItem('tambolaBoardHidden') === '1';
-  function renderBoardToggle() {
-    gridEl.classList.toggle('hidden', boardHidden);
-    toggleBoardBtn.textContent = boardHidden ? '🔼 Show numbers' : '🔽 Hide numbers';
-  }
-  toggleBoardBtn.addEventListener('click', () => {
-    boardHidden = !boardHidden;
-    localStorage.setItem('tambolaBoardHidden', boardHidden ? '1' : '0');
-    renderBoardToggle();
-  });
-  renderBoardToggle();
-
-  // ---- controls ----
-  const startBtn = document.getElementById('startBtn');
-  const pauseBtn = document.getElementById('pauseBtn');
-  const callNextBtn = document.getElementById('callNextBtn');
-  const resetBtn = document.getElementById('resetBtn');
-
-  startBtn.addEventListener('click', () => socket.emit('ctrl:start'));
-  pauseBtn.addEventListener('click', () => socket.emit('ctrl:pause'));
-  callNextBtn.addEventListener('click', () => socket.emit('ctrl:callNow'));
-  resetBtn.addEventListener('click', () => {
-    if (confirm('Reset the whole game? All called numbers will be cleared for everyone watching.')) {
-      socket.emit('ctrl:reset');
+    function playAudio(number, nickname) {
+      if (!audioEnabled) return;
+      
+      // Attempt to play the specific MP3 file from the audio folder
+      const audio = new Audio(`/audio/${number}.mp3`);
+      audio.play().catch(() => {
+        // Fallback: If no MP3 is found, use text-to-speech
+        if ('speechSynthesis' in window) {
+          const text = nickname ? `${nickname}... Number ${number}` : `Number ${number}`;
+          const utterance = new SpeechSynthesisUtterance(text);
+          window.speechSynthesis.speak(utterance);
+        }
+      });
     }
-  });
-  document.querySelectorAll('.interval-btn').forEach(btn => {
-    btn.addEventListener('click', () => socket.emit('ctrl:setInterval', btn.dataset.sec));
-  });
 
-  // ---- state rendering ----
-  const statusDot = document.getElementById('statusDot');
-  const statusText = document.getElementById('statusText');
-  const calledCount = document.getElementById('calledCount');
-  const intervalMeta = document.getElementById('intervalMeta');
+    // ---- Display Logic ----
+    const revealNum = document.getElementById('revealNum');
+    const nicknameEl = document.getElementById('nickname');
 
-  function renderState(state) {
-    Object.values(cells).forEach(c => c.classList.remove('current'));
-    state.called.forEach(n => cells[n] && cells[n].classList.add('called'));
-    if (state.current && cells[state.current]) cells[state.current].classList.add('current');
-    renderRecent(state.called);
-    calledCount.textContent = `${state.called.length} of 90 called`;
-    intervalMeta.textContent = `Interval: ${state.intervalSec}s`;
-    statusDot.className = 'dot ' + (state.running ? 'live' : 'paused');
-    statusText.textContent = state.running ? 'Calling live' : (state.called.length ? 'Paused' : 'Waiting to start');
-    if (!state.current) {
+    function renderState(state) {
+      // Clear the board
+      document.querySelectorAll('.cell').forEach(c => c.classList.remove('called'));
+      
+      // Mark all previously called numbers
+      if (state.calledNumbers) {
+        state.calledNumbers.forEach(num => {
+          const cell = document.getElementById('cell-' + num);
+          if (cell) cell.classList.add('called');
+        });
+      }
+
+      // Show the most recently called number
+      if (state.lastCalled && state.lastCalled.number) {
+        revealNum.textContent = state.lastCalled.number;
+        revealNum.classList.remove('placeholder');
+        nicknameEl.textContent = state.lastCalled.nickname || '';
+      }
+    }
+
+    function showNumber(number, nickname) {
+      // Update UI with the new number
+      revealNum.textContent = number;
+      revealNum.classList.remove('placeholder');
+      nicknameEl.textContent = nickname || '';
+      
+      // Highlight it on the board
+      const cell = document.getElementById('cell-' + number);
+      if (cell) cell.classList.add('called');
+
+      // Trigger audio announcement
+      playAudio(number, nickname);
+    }
+
+    // ---- offline overlay ----
+    const overlay = document.getElementById('offlineOverlay');
+    let offlineTimer = null;
+    
+    function setOffline(isOffline) {
+      if (isOffline) {
+        offlineTimer = setTimeout(() => overlay.classList.add('show'), 1500);
+      } else {
+        clearTimeout(offlineTimer);
+        overlay.classList.remove('show');
+      }
+    }
+    
+    window.addEventListener('offline', () => setOffline(true));
+    window.addEventListener('online', () => setOffline(false));
+    if (!navigator.onLine) setOffline(true);
+
+    // ---- socket connection & events ----
+    const socket = io();
+
+    socket.on('connect', () => setOffline(false));
+    socket.on('disconnect', () => setOffline(true));
+    
+    // Listen for the initial state when connecting
+    socket.on('state', renderState);
+    
+    // Listen for new numbers being drawn
+    socket.on('numberCalled', (data) => {
+      showNumber(data.number, data.nickname);
+    });
+    
+    // Listen for board reset from admin
+    socket.on('reset', () => {
       revealNum.textContent = 'Waiting to start';
       revealNum.classList.add('placeholder');
-    }
-    startBtn.disabled = state.running || state.remaining === 0;
-    pauseBtn.disabled = !state.running;
-    callNextBtn.disabled = state.remaining === 0;
-    document.querySelectorAll('.interval-btn').forEach(btn => {
-      btn.classList.toggle('active', parseInt(btn.dataset.sec, 10) === state.intervalSec);
+      nicknameEl.textContent = '';
+      document.querySelectorAll('.cell').forEach(c => c.classList.remove('called'));
     });
-  }
 
-  // ---- offline overlay ----
-  // #offlineOverlay is display:none by default (style.css) and toggled
-  // via the .show
+    // ---- Service Worker Registration (PWA support) ----
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.log('Service Worker registration failed: ', err);
+      });
+    }
+  </script>
+</body>
+</html>
