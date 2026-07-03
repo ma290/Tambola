@@ -264,7 +264,8 @@
       <div class="eyebrow">Live number board</div>
     </div>
     <div class="top-right">
-      <button class="icon-btn" id="testVoiceBtn" title="Test voice" style="width:auto; padding:0 14px; font-size:13px; font-weight:700;">🗣 Test voice</button>
+      <button class="icon-btn" id="testVoiceBtn" title="Test voice"
+        style="width:auto; padding:0 14px; font-size:13px; font-weight:700;">🗣 Test voice</button>
       <button class="icon-btn" id="muteBtn" title="Mute announcements">🔊</button>
       <div class="status-pill">
         <span class="dot" id="statusDot"></span>
@@ -338,29 +339,29 @@
     localStorage.setItem('tambolaMuted', muted ? '1' : '0');
     if (muted) {
       speechSynthesis.cancel();
-      if (typeof callerAudio !== 'undefined') { callerAudio.pause(); }
+      callerAudio.pause();
     }
     renderMute();
   });
   renderMute();
 
-  // ---- sound gate (English voice announcement is required, so unlock it up front) ----
+  // ---- sound gate ----
+  // Mobile browsers and Android WebView require a real user gesture before
+  // any programmatic audio play() calls will succeed. This gate captures
+  // that gesture up front so every subsequent speak() call works reliably.
   const soundGate = document.getElementById('soundGate');
   const enableSoundBtn = document.getElementById('enableSoundBtn');
   let soundUnlocked = sessionStorage.getItem('tambolaSoundUnlocked') === '1';
 
   function unlockSound() {
-    // Unlock HTML5 <audio> playback (the primary announcement path) with a
-    // real user-gesture play/pause — required by mobile browsers and
-    // WebView before any later programmatic play() calls will work.
+    // Unlock HTML5 <audio> with a silent play/pause triggered by the user gesture
     try {
       const a = new Audio('/audio/1.mp3');
       a.volume = 0;
       a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {});
     } catch (e) {}
+    // Warm up the Web Speech API fallback path the same way
     if ('speechSynthesis' in window) {
-      // a near-silent utterance, purely to satisfy the browser's
-      // "must follow a user gesture" rule for speech audio (fallback path)
       const warm = new SpeechSynthesisUtterance(' ');
       warm.volume = 0;
       speechSynthesis.speak(warm);
@@ -373,10 +374,8 @@
   if (soundUnlocked) soundGate.classList.add('hidden');
 
   // ---- speech (English announcement) ----
-  // Primary path: pre-generated audio clips (/audio/N.mp3) — these are
-  // plain <audio> playback, which works reliably even inside Android
-  // WebView-based APK wrappers, unlike the Web Speech API (speechSynthesis),
-  // which most WebViews don't implement at all.
+  // Primary path: pre-generated MP3 clips — reliable in Android WebView.
+  // Fallback: Web Speech API (not available in most WebViews).
   const callerAudio = new Audio();
   callerAudio.preload = 'auto';
 
@@ -401,20 +400,20 @@
     const playPromise = callerAudio.play();
     if (playPromise && playPromise.catch) {
       playPromise.catch(() => {
-        // audio file missing/blocked — fall back to browser TTS if present
+        // Audio file missing or blocked — fall back to TTS
         speakViaSynthesis(number, nickname);
       });
     }
   }
+
   if ('speechSynthesis' in window) {
     speechSynthesis.getVoices(); // warm up voice list
-    // Known Chrome-on-Android bug: the speech engine silently pauses
-    // itself after ~15s idle and never resumes on its own. Nudging it
-    // periodically keeps announcements working through a long game.
+    // Chrome-on-Android silently pauses speech after ~15s idle and never
+    // self-recovers. Nudging resume() every 8s keeps it alive all game.
     setInterval(() => { speechSynthesis.resume(); }, 8000);
   }
 
-  // ---- test voice button (bypasses mute, for diagnosing device audio) ----
+  // ---- test voice button (bypasses mute — for diagnosing device audio) ----
   document.getElementById('testVoiceBtn').addEventListener('click', () => {
     const a = new Audio('/audio/7.mp3'); // "7. Lucky Seven"
     const playPromise = a.play();
@@ -459,7 +458,7 @@
     nicknameEl.textContent = nickname || '';
     revealEl.classList.remove('spin');
     burstParticles();
-    void revealEl.offsetWidth; // restart animation
+    void revealEl.offsetWidth; // force reflow to restart CSS animation
     revealEl.classList.add('spin');
     speak(n, nickname);
   }
@@ -536,6 +535,21 @@
     });
   }
 
+  // ---- offline overlay ----
+  const overlay = document.getElementById('offlineOverlay');
+  let offlineTimer = null;
+  function setOffline(isOffline) {
+    if (isOffline) {
+      offlineTimer = setTimeout(() => overlay.classList.add('show'), 1500);
+    } else {
+      clearTimeout(offlineTimer);
+      overlay.classList.remove('show');
+    }
+  }
+  window.addEventListener('offline', () => setOffline(true));
+  window.addEventListener('online', () => setOffline(false));
+  if (!navigator.onLine) setOffline(true);
+
   // ---- socket ----
   const socket = io();
   socket.on('connect', () => { setOffline(false); });
@@ -544,4 +558,19 @@
   socket.on('numberCalled', ({ number, nickname }) => showNumber(number, nickname));
   socket.on('reset', () => {
     Object.values(cells).forEach(c => c.classList.remove('called', 'current'));
-    revealNum.textContent = '
+    revealNum.textContent = 'Waiting to start';
+    revealNum.classList.add('placeholder');
+    nicknameEl.textContent = '';
+    recentEl.innerHTML = '';
+  });
+  socket.on('gameOver', () => {
+    nicknameEl.textContent = 'Full house — all 90 called!';
+  });
+
+  // ---- offline-first service worker ----
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  }
+</script>
+</body>
+</html>
